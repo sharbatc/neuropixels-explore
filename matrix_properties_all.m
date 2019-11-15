@@ -10,17 +10,31 @@
 %       - where "n" = nodes
 
 %  Dependencies: - find_nodal_versatility.m
-%
+
 
 % Import directories and datasets
 clear
 addpath '/Users/sorellana/Documents/MATLAB/BCT/BCT_2019'
 addpath '/Users/sorellana/github/neuropixels-explore'
-load ??
+load(strcat('/Users/sorellana/github/neuropixels-explore', '/spikedata.csv'))
+
+%Make connectivity matrix
+    %Because it is spike data (ones and zeroes) we compute dice coefficient between
+    %variables instead of correlation.
+
+    nnodes = size(spikedata,1);
+    data = spikedata(:, 7353:10006);
+    matrix = nan(nnodes,nnodes);
+for i = 1:nnodes
+    for x = 1:nnodes
+      matrix(i,x) =  dice(spikedata(i,:), spikedata(x,:));
+    end
+end %similarities seem extremely row.
+
+%For this data obtain find_nodal_versatility
+versatility_m = find_nodal_versatility(matrix)' %add normalization parameter
 
 
-
-%%%% Rename input data to match the script
 
 % Here name your input data as input_data
   data = input_data
