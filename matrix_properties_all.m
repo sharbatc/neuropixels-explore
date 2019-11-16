@@ -16,88 +16,107 @@
 clear
 addpath '/Users/sorellana/Documents/MATLAB/BCT/BCT_2019'
 addpath '/Users/sorellana/github/neuropixels-explore'
-load(strcat('/Users/sorellana/github/neuropixels-explore', '/spikedata.csv'))
+
+%Initialize things to import
+filename = '/Users/sorellana/github/neuropixels-explore/import.txt';
+delimiter = '\t';
+startRow = 2;
+formatSpec = '%s'
+
+fileID = fopen(filename,'r');
+filesIn = textscan(fileID, formatSpec, 'Delimiter', delimiter, 'HeaderLines' ,startRow-1, 'ReturnOnError', false);
+filesIn = filesin{1}
+fclose(fileID);
+
+for i = 1:size(filesIn,1)
+  load(strcat('/Users/sorellana/github/neuropixels-explore/raw_data/', filesIn{2}))
+end
+
+%% BREAK try not running the section above twice
+
+
+%Rename raw data
+raw = zeros(size(X743475441_spiketimes), 3);
+raw(:,:,1) = X743475441_spiketimes;
+raw(:,:,2) = X744228101_spiketimes;
+%raw(:,:,3) = ;
+%clear X*
+
+nsub = 2;
+nnodes = size(X743475441_spiketimes,1)-1;
+
+%for now
+raw1 =  X743475441_spiketimes
+
+%%%% Make connectivity matrices for imported data
+%Clear out columns that do not  have anything on them - find the 1st variable with a 1
+time = struct;
+
+for i = 1:size(raw1(:,:),2)
+  if any(raw1(:,i)>0);
+    time.start(1) = i
+    break
+end
+end
+
+data1= raw1(:,time.start(1):end);
+
+%Sample 25 ms seconds from the 1st matrix and 25 ms from the second matrix
+% dimensions: nodes x samples times x stimulus types x subjects
+sampletime = 25000
+stimuli = 2
+timeseries = nan(nnodes, sampletime, stimuli,3);
+
+for i = 1:nsub
+  timeseries(:,:,1,i) = raw1(:,25000:49999);
+  timeseries(:,:,2,i) = raw1(:,100000:124999); %Third segement of the measurement
+end
 
 %Make connectivity matrix
     %Because it is spike data (ones and zeroes) we compute dice coefficient between
-    %variables instead of correlation.
-
-    nnodes = size(spikedata,1);
-    data = spikedata(:, 7353:10006);
-    matrix = nan(nnodes,nnodes);
-for i = 1:nnodes
-    for x = 1:nnodes
-      matrix(i,x) =  dice(spikedata(i,:), spikedata(x,:));
-    end
-end %similarities seem extremely row.
-
-%For this data obtain find_nodal_versatility
-versatility_m = find_nodal_versatility(matrix)' %add normalization parameter
+    %variables instead of correlation
 
 
-
-% Here name your input data as input_data
-  data = input_data
-  nsub = size(input_data,4)
-  nnodes = size(input_data,1)
-  ndim = size(input_data,3)
-
-% 1) Obtain versality and organize it as follows:
-%n x measurements x subs
-%Also  store descriptive statistics of each vector
-out = struct;
-out.versality = nan(nnodes,ndim,nsub);
-out.versat_T = table;
-
-  for sub = 1:nsub
-    temp = data(:,:,:,sub);
-    for mat = 1:ndim
-      temp2 = find_nodal_versatility(temp(:,:,mat))';
-      out.versat(:,ndim,sub) = temp2;
-      %Make table with versatility descriptives
-      out.versat_T.subn = nsub;
-      out.versat_T.std = std(out.versat(temp2));
-      out.versat_T.mean = mean(out.versat(temp2));
+matrix = nan(nnodes,nnodes,2,nsub);
+for sub = 1:nsub
+  for p = 1:stimuli
+    for i = 1:nnodes
+        for x = 1:nnodes
+          if isempty(dice(timeseries(i,:,sub), timeseries(x,:,sub)));
+          matrix(i,x,p,sub) = 0;
+        else
+          matrix(i,x,p,sub) =  dice(timeseries(i,:,sub), timeseries(x,:,sub));
+        end
+      end
     end
   end
-clear temp
-%
-cd(currentFolder)
+end
 save('sofia_ongoing_out.mat')
 
-%2) Compute the correlation between columns of the out.versat
-    %Stored as correlation matrices (triu)
-    %WHY: Determine how similar one presentation is as opposed to another
-
-out.versat_corr_results = table
-for i = 1:nsub
-  %Store upper triangular of the correlation matrix.
-  temp =  triu(corr(out.versat(:,:,i))); %stored as separate matrices
-  out.versat_corr(i) = temp;
-  % Store correlations in a Table from highest to lowest
-  % also store their index - to find which to vars (matrices from input data)
-  % are most similar.
-
-    %Obtain number of upper triangular elements in your matrices
-    nn = sum(sum(0<triu(abs(temp))))-1; %Check the -1 -- seemed to have worked for indexing.
-     %index, and value of highest correlations
-      temp_above_diag = triu(temp,1);
-      [temp_corrs, temp_idx]= sort(temp2);
-      %Table: value, row, column to store
-      [temp_row,temp_col]= ind2sub(size(temp),temp_idx(end-nn,end));
-      %Make one table per subject in the struct
-      out.versat_corr_results(i).value = temp_corrs(end-nn,end);
-      out.versat_corr_results(i).row = temp_row;
-      out.versat_corr_results(i).col = temp_col;
-
+%For this data obtain nodal_versatility
+% dimnensions: node x stimuli x subjects
+versatility_m = zeros(nnodes,stimuli, nsubs)
+for i  = 1:nsub
+  for stim  = 1:stimuli
+    find_nodal_versatility(:,stimuli,nsub) = find_nodal_versatility(matrix(:,:,stimuli,sub))
+  end
 end
+versatility_m = find_nodal_versatility(matrix)' %add normalization parameter
 
+save('sofia_ongoing_out.mat')
 
-% 2) For repeated measures: Give me a distribution of versatility per node
-
-% across different presentations
-    %Store it per subject in a structure
-
+%% CONTINUATION
 load('sofia_ongoing_out.mat')
 
-    %Each row is a node - make the mini-distributions of each node
+%%%%%%%%%%% Visualize propoerties of these matrices
+
+figure(1)
+subplot(3,2,1)
+hist(versatility_m(:,1,1))
+subplot(3,2,2)
+hist(versatility_m(:,2,1))
+
+subplot(3,2,3)
+hist(versatility_m(:,1,2))
+subplot(3,2,4)
+hist(versatility_m(:,2,2))
